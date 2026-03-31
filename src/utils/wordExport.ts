@@ -9,7 +9,7 @@ import coreCompetenciesData from '../data/core_competencies.json';
  * 下載並讀取 Word 模板檔案（自動使用 Vite base URL，相容 dev 與 GH Pages）
  */
 async function getTemplateFile(filename: string): Promise<ArrayBuffer> {
-  const url = `${import.meta.env.BASE_URL}${filename}`;
+  const url = `${import.meta.env.BASE_URL}${filename}?v=${Date.now()}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`無法載入模板檔案: ${url}`);

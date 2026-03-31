@@ -83,53 +83,64 @@ def patch_curriculum(path):
              # Cell 7: 備註與循環終止
              row.cells[7].text = "{Notes}{/Weeks}"
             
-    # 4. 行政表頭標籤注入 (Row 0-3)
+    # 4. 行政表頭標籤外科手術式注入 (Row 0-3)
+    # 根據多次診斷，Row 0-3 的索引是目前最穩定的注入方式
     for t in doc.tables:
-        if len(t.rows) >= 25:
-             # Row 0: 領域/科目 (Cell 1), 課程名稱 (Cell 6)
-             r0 = t.rows[0]
-             if "{DomainModeString}" not in r0.cells[1].text:
-                 r0.cells[1].text = "{DomainModeString}"
-             if "{CourseName}" not in r0.cells[6].text:
-                 r0.cells[6].text = "{CourseName}"
-             
-             # Row 1: 年級 (Cell 1), 教材來源 (Cell 6)
-             r1 = t.rows[1]
-             if "{Grade}" not in r1.cells[1].text:
-                 r1.cells[1].text = "{Grade}"
-             if "{MaterialSource}" not in r1.cells[6].text:
-                 r1.cells[6].text = "{MaterialSource}"
-             
-             # Row 2: 節數 (Cell 1), 設計者 (Cell 6)
-             r2 = t.rows[2]
-             if "{WeeklyPeriods}" not in r2.cells[1].text:
-                 r2.cells[1].text = "{WeeklyPeriods}"
-             if "{Teacher}" not in r2.cells[6].text:
-                 r2.cells[6].text = "{Teacher}"
-             
-             # Row 3: 核心素養 (Cell 1)
-             r3 = t.rows[3]
-             if "{CoreCompetencies}" not in r3.cells[1].text:
-                 r3.cells[1].text = "{CoreCompetencies}"
+        if len(t.rows) >= 5:
+            # Row 0: 領域 (Cell 1 尾端), 課程名稱 (Cell 6)
+            r0 = t.rows[0]
+            if len(r0.cells) >= 7:
+                # 領域標籤附加在 Cell 1 的段落末尾，不破換原本的複選框文字
+                if "{DomainModeString}" not in r0.cells[1].text:
+                    r0.cells[1].paragraphs[-1].add_run(" {DomainModeString}")
+                r0.cells[6].text = "{CourseName}"
+            
+            # Row 1: 年級 (Cell 1), 教材來源 (Cell 6)
+            r1 = t.rows[1]
+            if len(r1.cells) >= 7:
+                r1.cells[1].text = "{Grade}"
+                r1.cells[6].text = "{MaterialSource}"
+                
+            # Row 2: 節數 (Cell 1), 設計者 (Cell 6)
+            r2 = t.rows[2]
+            if len(r2.cells) >= 7:
+                r2.cells[1].text = "{WeeklyPeriods}"
+                # 確保 Teacher 標籤乾淨
+                r2.cells[6].text = "{Teacher}"
+                
+            # Row 3: 核心素養 (Cell 1)
+            r3 = t.rows[3]
+            if len(r3.cells) >= 2:
+                r3.cells[1].text = "{CoreCompetencies}"
 
     doc.save(path)
-    print(f"Patched Curriculum Template (Dynamic Loop + Header): {path}")
+    print(f"Patched Curriculum Template (Surgical Header Alignment): {path}")
 
 def patch_igp(path):
     if not os.path.exists(path):
         return
     doc = Document(path)
     
-    # 注入表頭標籤 (Row 0: 課程名稱, 類型, 教師)
+    # IGP 關鍵字映射
+    igp_headers = {
+        "課程名稱": "{CourseName}",
+        "課程類型": "{CourseType}",
+        "授課教師": "{Teacher}"
+    }
+
     for t in doc.tables:
-        if len(t.rows) >= 1 and len(t.columns) >= 5:
-            r0 = t.rows[0]
-            if "{CourseName}" not in r0.cells[1].text:
-                r0.cells[1].text = "{CourseName}"
-            if "{CourseType}" not in r0.cells[3].text:
-                r0.cells[3].text = "{CourseType}"
-            if "{Teacher}" not in r0.cells[5].text:
-                r0.cells[5].text = "{Teacher}"
+        # 表頭通常在較前面的列中
+        for r_idx in range(min(3, len(t.rows))):
+            row = t.rows[r_idx]
+            for i, cell in enumerate(row.cells):
+                for key, tag in igp_headers.items():
+                    if key in cell.text and tag not in "".join([c.text for c in row.cells]):
+                        for next_idx in range(i + 1, len(row.cells)):
+                            target_cell = row.cells[next_idx]
+                            if target_cell != cell:
+                                target_cell.text = tag
+                                break
+                        break
 
     for t in doc.tables:
         if len(t.rows) >= 3:
@@ -147,7 +158,7 @@ def patch_igp(path):
                 r_del.font.strike = True
                 p.add_run("{/isDel}{^isAdd}{^isDel}{text}{/isDel}{/isAdd}{/IndRuns}")
     doc.save(path)
-    print(f"Patched IGP Template (Full Header): {path}")
+    print(f"Patched IGP Template (Relative Header Mapping): {path}")
 
 if __name__ == "__main__":
     patch_curriculum('public/curriculum_template.docx')

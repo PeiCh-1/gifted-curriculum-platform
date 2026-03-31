@@ -83,29 +83,33 @@ def patch_curriculum(path):
              # Cell 7: 備註與循環終止
              row.cells[7].text = "{Notes}{/Weeks}"
             
-    # 4. 行政表頭標籤外科手術式注入 (Row 0-3)
-    # 根據多次診斷，Row 0-3 的索引是目前最穩定的注入方式
+    # 4. 行政表頭標籤外科手術式注入 (Row 0-3) - 修復標題被覆蓋問題
     for t in doc.tables:
         if len(t.rows) >= 5:
-            # Row 0: 領域 (Cell 1 尾端), 課程名稱 (Cell 6)
+            # Row 0: 領域/科目 (Cell 0: Label), [Boxes] (Cell 1), 課程名稱 (Cell 4), {CourseName} (Cell 6)
             r0 = t.rows[0]
             if len(r0.cells) >= 7:
-                # 領域標籤附加在 Cell 1 的段落末尾，不破換原本的複選框文字
+                # 領域標籤附加在 Cell 1 的段落末尾，不可蓋掉 Cell 4
                 if "{DomainModeString}" not in r0.cells[1].text:
                     r0.cells[1].paragraphs[-1].add_run(" {DomainModeString}")
+                
+                # 強制恢復標題文字 (Cell 4/5 可能是合併的)
+                r0.cells[4].text = "課程名稱"
+                # 將內容放在 Cell 6
                 r0.cells[6].text = "{CourseName}"
             
-            # Row 1: 年級 (Cell 1), 教材來源 (Cell 6)
+            # Row 1: 年級/組別 (Cell 0), {Grade} (Cell 1), 教材來源 (Cell 4), {MaterialSource} (Cell 6)
             r1 = t.rows[1]
             if len(r1.cells) >= 7:
                 r1.cells[1].text = "{Grade}"
+                r1.cells[4].text = "教材來源"
                 r1.cells[6].text = "{MaterialSource}"
                 
-            # Row 2: 節數 (Cell 1), 設計者 (Cell 6)
+            # Row 2: 教學節數 (Cell 0), {WeeklyPeriods} (Cell 1), 設計者/教學者 (Cell 4), {Teacher} (Cell 6)
             r2 = t.rows[2]
             if len(r2.cells) >= 7:
                 r2.cells[1].text = "{WeeklyPeriods}"
-                # 確保 Teacher 標籤乾淨
+                r2.cells[4].text = "設計者/教學者"
                 r2.cells[6].text = "{Teacher}"
                 
             # Row 3: 核心素養 (Cell 1)
@@ -114,7 +118,7 @@ def patch_curriculum(path):
                 r3.cells[1].text = "{CoreCompetencies}"
 
     doc.save(path)
-    print(f"Patched Curriculum Template (Surgical Header Alignment): {path}")
+    print(f"Patched Curriculum Template (Header Title Recovery): {path}")
 
 def patch_igp(path):
     if not os.path.exists(path):

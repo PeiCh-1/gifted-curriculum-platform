@@ -1,5 +1,5 @@
-name: Deploy to GitHub Pages (Refined Paths)
-# Refined: Force Rebuild 2026-03-30
+name: FINAL-GIFTED-RECOVERY-DEPLOY
+# Refined: Unique Concurrency Group 2026-03-31
 
 on:
   push:
@@ -12,8 +12,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: "final-gifted-pages-deploy"
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:

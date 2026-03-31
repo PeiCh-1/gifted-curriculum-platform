@@ -34,8 +34,14 @@ def patch_curriculum(path):
 
     # 2. 定標填表教師 (如果範本中有此文字)
     for p in doc.paragraphs:
-        if '填表教師：' in p.text and '{Teacher}' not in p.text:
+        if ('填表教師：' in p.text or '設計者/教學者' in p.text) and '{Teacher}' not in p.text:
              p.add_run('{Teacher}')
+
+    for t in doc.tables:
+        for r in t.rows:
+            for c in r.cells:
+                if '設計者/教學者' in c.text and '{Teacher}' not in c.text:
+                    c.paragraphs[0].add_run('：{Teacher}')
 
     # 3. 樣式注入 (學習表現欄位)
     for t in doc.tables:

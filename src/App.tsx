@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Settings as SettingsIcon, Calendar, FileEdit } from 'lucide-react';
 import { useAppContext, AppProvider } from './store/AppContext';
 import { Lock } from 'lucide-react';
@@ -106,9 +106,9 @@ const Layout = () => {
 function App() {
   return (
     <AppProvider>
-      <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <HashRouter>
         <Layout />
-      </BrowserRouter>
+      </HashRouter>
     </AppProvider>
   );
 }

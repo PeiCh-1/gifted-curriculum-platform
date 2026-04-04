@@ -129,7 +129,7 @@ ${indicatorsText}
 2. 二次改寫語法：必須以原始指標內容為主體，僅針對必要處微調。
    - **原則**：標點符號（如句號、逗號）應視為同一修正段落文字。**請將標點符號包含在括號內（預防出現多餘括號）。**
    - **正確格式**：每一項變動必須獨立完整封閉。刪除為 [-內容。-] ，新增為 [+內容。+] 。
-3. 調整策略：為挑選的指標，**必須從內容、歷程、環境、評量四面向中「各」挑選 1~2 項（嚴禁漏掉任何一個面向，且不超過 2 項）** 最適合此學生的策略目標。
+3. 調整策略：為挑選的指標，**必須從內容、歷程、環境、評量四面向中「各」挑選 1~3 項（嚴禁漏掉任何一個面向，且不超過 3 項）** 最適合此學生的策略目標。
 
 請回傳陣列 JSON 物件：
 [
@@ -146,6 +146,20 @@ ${indicatorsText}
       const result = await model.generateContent(prompt);
       let responseText = result.response.text().trim();
       if (responseText.startsWith('```json')) responseText = responseText.replace(/^```json/, '').replace(/```$/, '').trim();
+      
+      // --- AI 語法自動校正器 (Sanitizer) ---
+      const sanitizeAiMarkers = (text: string) => {
+        if (!text) return '';
+        return text
+          // 修正重複結尾: [+文字+]] -> [+文字+]
+          .replace(/\[\+([^\]]+)\+\]\]/g, '[+$1+]')
+          .replace(/\[\-([^\]]+)\-\]\]/g, '[-$1-]')
+          // 修正錯誤合併: [-文字+] -> [-文字-]
+          .replace(/\[\-([^+\]]+)\+\]/g, '[-$1-]')
+          // 確保標點後括號內部沒有多餘空格
+          .replace(/\[\+ /g, '[+').replace(/ \+\]/g, '+]')
+          .replace(/\[\- /g, '[-').replace(/ \-\]/g, '-]');
+      };
 
       const generatedPlan = JSON.parse(responseText);
 
@@ -154,7 +168,7 @@ ${indicatorsText}
         if (!gen) return adj;
         return {
           ...adj,
-          adjustedDesc: gen.adjustedDesc || adj.adjustedDesc,
+          adjustedDesc: sanitizeAiMarkers(gen.adjustedDesc || adj.adjustedDesc),
           contentStrategy: gen.contentStrategy || [],
           processStrategy: gen.processStrategy || [],
           environmentStrategy: gen.environmentStrategy || [],

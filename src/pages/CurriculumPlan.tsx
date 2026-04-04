@@ -220,6 +220,20 @@ ${courseSection}
       const generatedData = JSON.parse(responseText);
       const generatedWeeks = generatedData.weeks || [];
 
+      // --- AI 語法自動校正器 (Sanitizer) ---
+      const sanitizeAiMarkers = (text: string) => {
+        if (!text) return '';
+        return text
+          // 修正重複結尾: [+文字+]] -> [+文字+]
+          .replace(/\[\+([^\]]+)\+\]\]/g, '[+$1+]')
+          .replace(/\[\-([^\]]+)\-\]\]/g, '[-$1-]')
+          // 修正錯誤合併: [-文字+] -> [-文字-]
+          .replace(/\[\-([^+\]]+)\+\]/g, '[-$1-]')
+          // 確保標點後括號內部沒有多餘空格
+          .replace(/\[\+ /g, '[+').replace(/ \+\]/g, '+]')
+          .replace(/\[\- /g, '[-').replace(/ \-\]/g, '-]');
+      };
+
       const mergeInto = (lessons: WeeklyPlan[], courseId: 'A1' | 'A2') =>
         lessons.map(lesson => {
           const genW = generatedWeeks.find((g: any) => g.weekNumber === lesson.weekNumber);
@@ -228,9 +242,22 @@ ${courseSection}
           const adjs: Record<string, any> = {};
           genW.indicators?.forEach((ind: any) => {
             perfs.push(ind.code);
-            if (ind.adjusted) adjs[ind.code] = { adjusted: true, adjustedDesc: ind.adjustedDesc };
+            if (ind.adjusted) {
+              adjs[ind.code] = { 
+                adjusted: true, 
+                adjustedDesc: sanitizeAiMarkers(ind.adjustedDesc || '') 
+              };
+            }
           });
-          return { ...lesson, courseId, learningPerformances: perfs, performanceAdjustments: adjs, lessonFocus: genW.lessonFocus || '', assessmentMethods: genW.assessmentMethods || [], issues: genW.issues || [] };
+          return { 
+            ...lesson, 
+            courseId, 
+            learningPerformances: perfs, 
+            performanceAdjustments: adjs, 
+            lessonFocus: genW.lessonFocus || '', 
+            assessmentMethods: genW.assessmentMethods || [], 
+            issues: genW.issues || [] 
+          };
         });
 
       setLessonsA1(mergeInto(lessonsA1, 'A1'));

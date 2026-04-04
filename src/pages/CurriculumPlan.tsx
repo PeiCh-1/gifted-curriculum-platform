@@ -192,40 +192,39 @@ ${courseSection}
    - **單元重點字數限制**：單元重點 (lessonFocus) 只能根據課程內容生成 **10 個字以內** 的重點。
    - **同步勾選行政欄位**：請根據每週教學重點，自動挑選最適合的「評量方式」以及必要融入的「議題」。
 
-【JSON 格式要求】
-請回傳如下結構的物件（不加 Markdown code block）：
+【JSON 格式規範 (極度重要)】
+請務必回傳純 JSON 物件，格式如下：
 {
-  "courseGoalsA1": "...",
-  "courseGoalsA2": "...", 
+  "courseGoalsA1": "認知：1... 2...\\n情意：1... 2...\\n技能：1... 2...",
+  "courseGoalsA2": "同上格式 (若無雙門課則忽略)",
   "weeks": [
     {
       "weekNumber": 1,
       "courseId": "A1",
-      "indicators": [{ "code": "...", "adjusted": true, "adjustedDesc": "指標內容[+新增內容+][-原內容-]" }],
-      "lessonFocus": "10字內重點",
-      "assessmentMethods": ["口語評量", "觀察評量"],
+      "indicators": [
+        { "code": "實體代碼", "adjusted": true, "adjustedDesc": "指標內容[+新增描述+][-刪除描述-]" }
+      ],
+      "lessonFocus": "10字內單元亮點",
+      "assessmentMethods": ["口語評量"],
       "issues": ["人權教育"]
     },
-    ...累計共 ${totalWeeks} 週
+    ...累計產出 ${totalWeeks} 週，不可缺漏。
   ]
-}`;
+}
+請確保指標代碼 (code) 必須完全存在於我提供的指標庫中。`;
 
       const result = await model.generateContent(prompt);
       const rawText = result.response.text();
       
       // --- 強化的 JSON 提取器 (Robust JSON Extractor) ---
       const extractJson = (text: string) => {
-        // 1. 優先嘗試尋找 Markdown JSON 區塊
         const markdownMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
         if (markdownMatch) return markdownMatch[1].trim();
-
-        // 2. 尋找第一個 [ 或 { 以及最後一個 ] 或 }
         const start = Math.min(
           text.indexOf('[') === -1 ? Infinity : text.indexOf('['),
           text.indexOf('{') === -1 ? Infinity : text.indexOf('{')
         );
         const end = Math.max(text.lastIndexOf(']'), text.lastIndexOf('}'));
-        
         if (start !== Infinity && end !== -1 && start < end) {
           return text.substring(start, end + 1).trim();
         }
@@ -233,7 +232,6 @@ ${courseSection}
       };
 
       const responseText = extractJson(rawText);
-
       const generatedData = JSON.parse(responseText);
       const generatedWeeks = generatedData.weeks || [];
 
@@ -241,28 +239,18 @@ ${courseSection}
       const sanitizeAiMarkers = (text: string) => {
         if (!text) return '';
         let sanitized = text
-          // 1. 修正對稱性錯誤: [+文字-] -> [+文字+] / [-文字+] -> [-文字-]
           .replace(/\[\+([^\]]+)\-\]/g, '[+$1+]')
           .replace(/\[\-([^\]]+)\+\]/g, '[-$1-]')
-          // 2. 修正標籤內多餘標點: [+, 文字] -> [+文字+]
           .replace(/\[\+\s*[,，、]?/g, '[+')
           .replace(/\[\-\s*[,，、]?/g, '[-')
-          // 3. 補齊代碼區塊常見缺少次級符號: [+文字] -> [+文字+] / [-文字] -> [-文字-]
           .replace(/\[\+([^\]\+\-]+)\]/g, '[+$1+]')
           .replace(/\[\-([^\]\+\-]+)\]/g, '[-$1-]')
-          // 4. 修正重複或錯誤結尾: [+文字+]] -> [+文字+]
           .replace(/\[\+([^\]]+)\+\]\]/g, '[+$1+]')
           .replace(/\[\-([^\]]+)\-\]\]/g, '[-$1-]')
-          // 5. 修正標點溢出吸附: [+文字+]。] -> [+文字。+]
           .replace(/\[\+([^\]]+)\+\]([。，、；：！？])\]/g, '[+$1$2+]')
           .replace(/\[\-([^\]]+)\-\]([。，、；：！？])\]/g, '[-$1$2-]')
-          // 6. 處理常見 AI 語意結尾多出的孤兒括號: 文字] -> 文字
           .replace(/([。，、；：！？])\s*\]\s*$/g, '$1');
-
-        return sanitized
-          // 確保標點後括號內部沒有多餘空格
-          .replace(/\[\+ /g, '[+').replace(/ \+\]/g, '+]')
-          .replace(/\[\- /g, '[-').replace(/ \-\]/g, '-]');
+        return sanitized.replace(/\[\+ /g, '[+').replace(/ \+\]/g, '+]').replace(/\[\- /g, '[-').replace(/ \-\]/g, '-]');
       };
 
       const mergeInto = (lessons: WeeklyPlan[], courseId: 'A1' | 'A2') =>
@@ -271,30 +259,41 @@ ${courseSection}
           if (!genW) return lesson;
           const perfs: string[] = [];
           const adjs: Record<string, any> = {};
+          
           genW.indicators?.forEach((ind: any) => {
-            perfs.push(ind.code);
-            if (ind.adjusted) {
-              adjs[ind.code] = { 
-                adjusted: true, 
-                adjustedDesc: sanitizeAiMarkers(ind.adjustedDesc || '') 
-              };
+            // 只保留有效的指標代碼
+            const isValid = learningPerformancesData.some(p => p.code === ind.code);
+            if (isValid) {
+              perfs.push(ind.code);
+              if (ind.adjusted) {
+                adjs[ind.code] = { 
+                  adjusted: true, 
+                  adjustedDesc: sanitizeAiMarkers(ind.adjustedDesc || '') 
+                };
+              }
             }
           });
+
           return { 
             ...lesson, 
             courseId, 
-            learningPerformances: perfs, 
-            performanceAdjustments: adjs, 
-            lessonFocus: genW.lessonFocus || '', 
-            assessmentMethods: genW.assessmentMethods || [], 
-            issues: genW.issues || [] 
+            learningPerformances: perfs.length > 0 ? perfs : lesson.learningPerformances, 
+            performanceAdjustments: Object.keys(adjs).length > 0 ? adjs : lesson.performanceAdjustments, 
+            lessonFocus: genW.lessonFocus || lesson.lessonFocus, 
+            assessmentMethods: genW.assessmentMethods?.length > 0 ? genW.assessmentMethods : lesson.assessmentMethods, 
+            issues: genW.issues?.length > 0 ? genW.issues : lesson.issues 
           };
         });
 
-      setLessonsA1(mergeInto(lessonsA1, 'A1'));
-      if (isTwoCourses) setLessonsA2(mergeInto(lessonsA2, 'A2'));
+      const finalA1 = mergeInto(lessonsA1, 'A1');
+      setLessonsA1(finalA1);
+      
+      const finalA2 = isTwoCourses ? mergeInto(lessonsA2, 'A2') : [];
+      if (isTwoCourses) {
+        setLessonsA2(finalA2);
+      }
 
-      // 更新課程目標
+      // 統一更新課程目標與設定
       const updatedCourses = [...settings.courses];
       let hasChanges = false;
       if (generatedData.courseGoalsA1) {

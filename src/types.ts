@@ -20,6 +20,7 @@ export type CourseInfo = {
   selectedDomains: string[]; // ['國語文', '數學']
   selectedCoreCompetencies: string[]; // ['國-E-A1']
   description: string;
+  courseGoals: string;
 };
 
 export type WeeklyPlan = {

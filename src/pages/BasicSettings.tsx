@@ -82,7 +82,7 @@ export default function BasicSettings() {
     const isTwo = !settings.isTwoCourses;
     const newCourses = [...settings.courses];
     if (isTwo && newCourses.length === 1) {
-      newCourses.push({ id: 'A2', name: '', mode: '', selectedDomains: [], selectedCoreCompetencies: [], description: '' });
+      newCourses.push({ id: 'A2', name: '', mode: '', selectedDomains: [], selectedCoreCompetencies: [], description: '', courseGoals: '' });
     } else if (!isTwo && newCourses.length === 2) {
       newCourses.pop();
     }

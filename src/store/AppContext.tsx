@@ -24,7 +24,7 @@ const defaultState: AppState = {
     isTwoCourses: false,
     splitWeek: 10,
     courses: [
-      { id: 'A1', name: '', courseType: '必修', mode: '', selectedDomains: [], selectedCoreCompetencies: [], description: '' }
+      { id: 'A1', name: '', courseType: '必修', mode: '', selectedDomains: [], selectedCoreCompetencies: [], description: '', courseGoals: '' }
     ]
   },
   lessonsA1: [],

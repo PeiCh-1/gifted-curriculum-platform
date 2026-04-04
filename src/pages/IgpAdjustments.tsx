@@ -24,7 +24,23 @@ export default function IgpAdjustments() {
   ));
 
   const deduplicatedIndicators = deduplicatedCodes.map(code => {
-    return learningPerformancesData.find((d:any) => d.code === code) || { code, content: '未知指標' };
+    // 優先從週次計畫中尋找該指標是否有「調整後描述 (adjustedDesc)」
+    let adjustedContent = '';
+    for (const lesson of activeLessons) {
+      const adj = lesson.performanceAdjustments?.[code];
+      if (adj?.adjusted && adj.adjustedDesc) {
+        adjustedContent = adj.adjustedDesc;
+        break; // 找到第一個調整過的版本就以此為準
+      }
+    }
+
+    if (adjustedContent) {
+      return { code, content: adjustedContent, isAlreadyAdjusted: true };
+    }
+
+    // 若無調整，則從原始指標庫尋找
+    const original = learningPerformancesData.find((d: any) => d.code === code);
+    return original ? { ...original, isAlreadyAdjusted: false } : { code, content: '未知指標', isAlreadyAdjusted: false };
   });
 
   // Initialize IGP state if null

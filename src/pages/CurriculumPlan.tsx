@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { exportCurriculumToWord } from '../utils/wordExport';
 
 export default function CurriculumPlan() {
-  const { state, setLessonsA1, setLessonsA2 } = useAppContext();
+  const { state, setLessonsA1, setLessonsA2, setSettings } = useAppContext();
   const { settings, apiKey, lessonsA1, lessonsA2 } = state;
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -140,7 +140,7 @@ export default function CurriculumPlan() {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-      // 建立所有課程的指標資料
+      // 建立指標、議題、評量選項等參考文字
       const buildIndicatorText = (courseId: 'A1' | 'A2') =>
         getApplicableIndicators(courseId).map((ind: any) => `[${ind.code}] ${ind.content}`).join('\n');
 
@@ -170,39 +170,33 @@ ${buildIndicatorText('A1')}
 `;
       }
 
-      const prompt = `您是一位高雄市專業的資優教育教師與課程設計專家，請為我規劃一整學期的教學進度。
+      const prompt = `您是一位高雄市專業的資優教育教師與課程設計專家，請為我規劃一整學期的教學進度與課程總目標。
 【課程設定】
-學期週數：${totalWeeks} 週（一學期共 ${totalWeeks} 週）
-對象年級：${settings.grade}年級（允許的學習階段: ${allowedStages.join(', ')}）
+學期週數：${totalWeeks} 週
+對象年級：${settings.grade}年級
 ${courseSection}
-【融入議題說明】
-可選用：'性別平等教育','人權教育','環境教育','海洋教育','品德教育','生命教育','法治教育','科技教育','資訊教育','安全教育','防災教育','原住民族教育','多元文化教育','閱讀素養教育','家庭教育','生涯規劃教育','能源教育','媒體素養教育','戶外教育'
-【重要】融入議題不需要每週填寫，只有教學內容與某議題有高度且自然的關聯時才選填 1~2 項；若無，直接回傳 "issues": []。
 
-【學習表現指標要求】
-1. 每週只能挑選 1~3 個指標代碼（必須來自對應課程的指標庫），優先選 1~2 個最切合當週教學重點的指標，不要為了湊數而挑選。
-2. 【嚴格禁止】：同一週內不得同時選擇「代碼結構相同、只有中間羅馬數字學習階段不同」的指標。例如不可同時選 [特創 1a-II-1] 和 [特創 1a-III-1]，因為這兩個只差學習階段，內容高度重疊，毫無意義。
-3. 若有必要進行資優調整（加深加廣）：
-   - 設 adjusted: true。
-   - 【絕對禁止整句替換】：改寫時必須保留 80% 以上的「原始指標內容」，僅在關鍵字處以 [+新增字眼+] 與 [-刪除字眼-] 的方式進行微調與擴充。
-   - adjustedDesc 必須呈現這種增量標記。
-【強制限制】: 全學期有調整(adjusted=true)的指標數量必須嚴格控制在 2 到 5 個之間。
+【任務要求】
+1. 生成「課程總體學習目標」：需涵蓋認知、情意、技能三大面向，請彙整為列點顯示，【禁止】標註領域面向名稱（如不要寫：認知面向：...），直接輸出列點。
+2. 規劃每週進度：每週挑選 1~2 個最切合的指標，嚴格遵守資優調整標記規範（[+新增+][-刪除-]）。
 
-【評量方式】選用：'口語評量','實作評量','紙筆測驗','檔案評量','觀察評量','動態評量','自我評量','同儕評量'
-
-請嚴格以 JSON 格式回傳長度為 ${totalWeeks} 的陣列（不加 Markdown code block），每個物件結構：
-[
-  {
-    "weekNumber": 1,
-    "courseId": "A1",
-    "indicators": [
-      { "code": "特創 1a-II-1", "adjusted": false, "adjustedDesc": "" }
-    ],
-    "lessonFocus": "創意啟蒙",
-    "assessmentMethods": ["口語評量"],
-    "issues": []
-  }
-]`;
+【JSON 格式要求】
+請回傳如下結構的物件（不加 Markdown code block）：
+{
+  "courseGoalsA1": "1. ...\\n2. ...",
+  "courseGoalsA2": "1. ...", 
+  "weeks": [
+    {
+      "weekNumber": 1,
+      "courseId": "A1",
+      "indicators": [{ "code": "...", "adjusted": false, "adjustedDesc": "" }],
+      "lessonFocus": "...",
+      "assessmentMethods": ["..."],
+      "issues": []
+    },
+    ...累計共 ${totalWeeks} 週
+  ]
+}`;
 
       const result = await model.generateContent(prompt);
       let responseText = result.response.text().trim();
@@ -213,11 +207,12 @@ ${courseSection}
         responseText = responseText.replace(/^```/, '').replace(/```$/, '').trim();
       }
 
-      const generatedPlan = JSON.parse(responseText);
+      const generatedData = JSON.parse(responseText);
+      const generatedWeeks = generatedData.weeks || [];
 
       const mergeInto = (lessons: WeeklyPlan[], courseId: 'A1' | 'A2') =>
         lessons.map(lesson => {
-          const genW = generatedPlan.find((g: any) => g.weekNumber === lesson.weekNumber);
+          const genW = generatedWeeks.find((g: any) => g.weekNumber === lesson.weekNumber);
           if (!genW) return lesson;
           const perfs: string[] = [];
           const adjs: Record<string, any> = {};
@@ -231,22 +226,27 @@ ${courseSection}
       setLessonsA1(mergeInto(lessonsA1, 'A1'));
       if (isTwoCourses) setLessonsA2(mergeInto(lessonsA2, 'A2'));
 
+      // 更新課程目標
+      const updatedCourses = [...settings.courses];
+      let hasChanges = false;
+      if (generatedData.courseGoalsA1) {
+        const idx = updatedCourses.findIndex(c => c.id === 'A1');
+        if (idx !== -1) { updatedCourses[idx].courseGoals = generatedData.courseGoalsA1; hasChanges = true; }
+      }
+      if (isTwoCourses && generatedData.courseGoalsA2) {
+        const idx = updatedCourses.findIndex(c => c.id === 'A2');
+        if (idx !== -1) { updatedCourses[idx].courseGoals = generatedData.courseGoalsA2; hasChanges = true; }
+      }
+      if (hasChanges) {
+        setSettings({ ...settings, courses: updatedCourses });
+      }
+
     } catch (err: any) {
       console.error(err);
       setErrorMsg('生成失敗，請確認 API Key 是否正確，或稍後再試。' + (err.message || ''));
     } finally {
       setIsGenerating(false);
     }
-  };
-
-  const handleExportJSON = () => {
-    const dataStr = JSON.stringify(state, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `課程備份_${settings.academicYear || 'new'}_${Date.now()}.json`;
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   return (
@@ -265,9 +265,6 @@ ${courseSection}
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button onClick={handleExportJSON} className="btn-secondary flex items-center gap-2">
-            <Save size={18} /> 課程保存 (JSON)
-          </button>
           <button onClick={() => exportCurriculumToWord(state, 'A1')} className="btn-secondary flex items-center gap-2 text-indigo-700 border-indigo-200 hover:border-indigo-400 font-medium">
             <FileText size={18} /> 一鍵匯出 Word 檔
           </button>
@@ -280,6 +277,30 @@ ${courseSection}
             {isGenerating ? 'AI 思索中...' : 'AI 生成課程重點'}
           </button>
         </div>
+      </div>
+
+      {/* 課程目標區域 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {settings.courses.map((course, idx) => (
+          <div key={course.id} className="glass p-4 rounded-xl border-l-4 border-emerald-500 bg-emerald-50/30">
+            <label className="block text-sm font-bold text-emerald-800 mb-2 flex items-center gap-2">
+              <FileText size={16} /> 
+              {isTwoCourses ? `${course.id} 課程目標 (認知、情意、技能三大面向)` : '課程目標 (認知、情意、技能三大面向)'}
+            </label>
+            <textarea
+              rows={4}
+              className="w-full text-sm p-3 border border-emerald-100 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+              placeholder="AI 將自動生成列點式目標，您也可以手動修改..."
+              value={course.courseGoals || ''}
+              onChange={(e) => {
+                const updatedCourses = [...settings.courses];
+                updatedCourses[idx] = { ...course, courseGoals: e.target.value };
+                setSettings({ ...settings, courses: updatedCourses });
+              }}
+            />
+            <p className="text-[10px] text-emerald-600 mt-1 italic">* 此欄位僅供參考，不匯入 Word 檔</p>
+          </div>
+        ))}
       </div>
 
       {errorMsg && (

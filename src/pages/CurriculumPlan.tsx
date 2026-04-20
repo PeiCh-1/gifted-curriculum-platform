@@ -138,9 +138,25 @@ export default function CurriculumPlan() {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
+      
+      // --- 503 容錯重試機制 (Exponential Backoff) ---
+      const callAiWithRetry = async (retryCount = 0): Promise<any> => {
+        try {
+          const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+          return await model.generateContent(prompt);
+        } catch (err: any) {
+          const is503 = err.message?.includes('503') || err.message?.includes('high demand');
+          if (is503 && retryCount < 3) {
+            const delay = Math.pow(2, retryCount + 1) * 1000;
+            setErrorMsg(`伺服器忙碌中 (503)，將於 ${delay/1000} 秒後進行第 ${retryCount + 1} 次重試...`);
+            await new Promise(res => setTimeout(res, delay));
+            return await callAiWithRetry(retryCount + 1);
+          }
+          throw err;
+        }
+      };
 
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const result = await model.generateContent(prompt);
+      const result = await callAiWithRetry();
 
       // 建立指標、議題、評量選項等參考文字
       const buildIndicatorText = (courseId: 'A1' | 'A2') =>

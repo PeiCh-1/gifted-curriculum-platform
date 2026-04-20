@@ -144,8 +144,24 @@ ${indicatorsText}
   }
 ]`;
 
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent(prompt);
+      // --- 503 容錯重試機制 (Exponential Backoff) ---
+      const callAiWithRetry = async (retryCount = 0): Promise<any> => {
+        try {
+          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+          return await model.generateContent(prompt);
+        } catch (err: any) {
+          const is503 = err.message?.includes('503') || err.message?.includes('high demand');
+          if (is503 && retryCount < 3) {
+            const delay = Math.pow(2, retryCount + 1) * 1000;
+            setErrorMsg(`伺服器忙碌中 (503)，將於 ${delay/1000} 秒後進行第 ${retryCount + 1} 次重試...`);
+            await new Promise(res => setTimeout(res, delay));
+            return await callAiWithRetry(retryCount + 1);
+          }
+          throw err;
+        }
+      };
+
+      const result = await callAiWithRetry();
       const rawText = result.response.text();
       
       // --- 強化的 JSON 提取器 (Robust JSON Extractor) ---

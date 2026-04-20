@@ -144,24 +144,8 @@ ${indicatorsText}
   }
 ]`;
 
-      const callAiWithFallback = async (modelName: string): Promise<any> => {
-        try {
-          const model = genAI.getGenerativeModel(
-            { model: modelName },
-            { apiVersion: 'v1' }
-          );
-          return await model.generateContent(prompt);
-        } catch (err: any) {
-          if (modelName === 'gemini-2.5-flash' && (err.message?.includes('503') || err.message?.includes('high demand'))) {
-            if (window.confirm("Gemini 2.5 目前負載過高，是否切換至 1.5 版本繼續生成？")) {
-              return await callAiWithFallback('gemini-1.5-flash');
-            }
-          }
-          throw err;
-        }
-      };
-
-      const result = await callAiWithFallback('gemini-2.5-flash');
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent(prompt);
       const rawText = result.response.text();
       
       // --- 強化的 JSON 提取器 (Robust JSON Extractor) ---

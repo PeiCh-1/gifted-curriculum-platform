@@ -139,22 +139,8 @@ export default function CurriculumPlan() {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
 
-      const callAiWithFallback = async (modelName: string): Promise<any> => {
-        try {
-          const model = genAI.getGenerativeModel(
-            { model: modelName },
-            { apiVersion: 'v1' }
-          );
-          return await model.generateContent(prompt);
-        } catch (err: any) {
-          if (modelName === 'gemini-2.5-flash' && (err.message?.includes('503') || err.message?.includes('high demand'))) {
-            if (window.confirm("Gemini 2.5 目前負載過高，是否切換至 1.5 版本繼續生成？")) {
-              return await callAiWithFallback('gemini-1.5-flash');
-            }
-          }
-          throw err;
-        }
-      };
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const result = await model.generateContent(prompt);
 
       // 建立指標、議題、評量選項等參考文字
       const buildIndicatorText = (courseId: 'A1' | 'A2') =>
